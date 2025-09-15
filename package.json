@@ -7,8 +7,10 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
+    "server": "ts-node src/api/server.ts",
     "test": "jest",
     "test:watch": "jest --watch",
+    "test:api": "./test-api.sh",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "db:migrate": "drizzle-kit migrate",
@@ -30,6 +32,7 @@
   "devDependencies": {
     "@eslint/js": "^9.35.0",
     "@testcontainers/postgresql": "^11.5.1",
+    "@types/express": "^5.0.3",
     "@types/jest": "^30.0.0",
     "@types/node": "^20.0.0",
     "@typescript-eslint/eslint-plugin": "^8.43.0",
