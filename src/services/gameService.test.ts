@@ -4,7 +4,7 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import * as schema from '../db/schema';
 import { GameStatus } from '../types/gameTypes';
-import type { GameSession, Player, GameError } from './gameService';
+import type { GameSession, Player } from './gameService';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import path from 'path';
 
