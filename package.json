@@ -11,7 +11,9 @@
     "test:watch": "jest --watch",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate",
+    "simulate": "ts-node src/simulation.ts",
+    "demo": "ts-node src/demo-simulation.ts"
   },
   "keywords": [
     "backend",
