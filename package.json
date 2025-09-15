@@ -18,8 +18,8 @@
     "api",
     "nodejs"
   ],
-  "author": "",
-  "license": "ISC",
+  "author": "Les Jones",
+  "license": "MIT",
   "dependencies": {
     "drizzle-orm": "^0.44.5",
     "express": "^4.18.2",
