@@ -3,7 +3,7 @@ import { relations } from 'drizzle-orm';
 import { GameStatus } from '../types/gameTypes';
 
 // Enums
-export const gameStatusEnum = pgEnum('game_status', [GameStatus.WAITING, GameStatus.ACTIVE, GameStatus.COMPLETED]);
+export const gameStatusEnum = pgEnum('game_status', Object.values(GameStatus));
 
 // Players table
 export const players = pgTable('players', {
