@@ -5,6 +5,8 @@ import postgres from 'postgres';
 import * as schema from '../db/schema';
 import { GameStatus } from '../types/gameTypes';
 import type { GameSession, Player, GameError } from './gameService';
+import { migrate } from 'drizzle-orm/postgres-js/migrator';
+import path from 'path';
 
 let container: StartedPostgreSqlContainer;
 let testDb: ReturnType<typeof drizzle>;
@@ -24,65 +26,8 @@ beforeAll(async () => {
   const connectionString = container.getConnectionUri();
   testSql = postgres(connectionString);
   testDb = drizzle(testSql, { schema });
-
-  // Create tables manually since we don't have migrations
-  await testSql`CREATE TYPE game_status AS ENUM ('waiting', 'active', 'completed')`;
-
-  await testSql`
-    CREATE TABLE players (
-      id SERIAL PRIMARY KEY,
-      name VARCHAR(100) NOT NULL,
-      created_at TIMESTAMP DEFAULT NOW() NOT NULL
-    )
-  `;
-
-  await testSql`
-    CREATE TABLE game_sessions (
-      id SERIAL PRIMARY KEY,
-      status game_status DEFAULT 'waiting' NOT NULL,
-      winner_id INTEGER REFERENCES players(id),
-      is_draw BOOLEAN DEFAULT FALSE,
-      created_at TIMESTAMP DEFAULT NOW() NOT NULL,
-      completed_at TIMESTAMP,
-      current_turn INTEGER REFERENCES players(id),
-      grid JSON DEFAULT '[[null,null,null],[null,null,null],[null,null,null]]' NOT NULL
-    )
-  `;
-
-  await testSql`
-    CREATE TABLE game_participants (
-      id SERIAL PRIMARY KEY,
-      game_id INTEGER REFERENCES game_sessions(id) NOT NULL,
-      player_id INTEGER REFERENCES players(id) NOT NULL,
-      joined_at TIMESTAMP DEFAULT NOW() NOT NULL,
-      player_order INTEGER NOT NULL
-    )
-  `;
-
-  await testSql`
-    CREATE TABLE game_moves (
-      id SERIAL PRIMARY KEY,
-      game_id INTEGER REFERENCES game_sessions(id) NOT NULL,
-      player_id INTEGER REFERENCES players(id) NOT NULL,
-      row INTEGER NOT NULL,
-      col INTEGER NOT NULL,
-      move_number INTEGER NOT NULL,
-      created_at TIMESTAMP DEFAULT NOW() NOT NULL
-    )
-  `;
-
-  await testSql`
-    CREATE TABLE player_stats (
-      id SERIAL PRIMARY KEY,
-      player_id INTEGER REFERENCES players(id) NOT NULL,
-      games_played INTEGER DEFAULT 0,
-      games_won INTEGER DEFAULT 0,
-      total_moves INTEGER DEFAULT 0,
-      win_rate INTEGER DEFAULT 0,
-      efficiency INTEGER DEFAULT 0,
-      updated_at TIMESTAMP DEFAULT NOW() NOT NULL
-    )
-  `;
+  const migrationsPath = path.join(process.cwd(), 'drizzle');
+  await migrate(testDb, { migrationsFolder: migrationsPath });
 
   // Mock the database connection in the service module
   jest.doMock('../db/connection', () => ({
