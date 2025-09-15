@@ -58,11 +58,13 @@ export async function createPlayer(name: string): Promise<Player | GameError> {
 
 export async function getPlayer(playerId: number): Promise<Player | GameError> {
   try {
-    const result = await db.select().from(players).where(eq(players.id, playerId));
-    if (result.length === 0) {
+    const result = await db.query.players.findFirst({
+      where: eq(players.id, playerId),
+    });
+    if (!result) {
       return { type: 'PLAYER_NOT_FOUND', message: 'Player not found' };
     }
-    return { id: result[0].id, name: result[0].name };
+    return { id: result.id, name: result.name };
   } catch (error) {
     return { type: 'PLAYER_NOT_FOUND', message: 'Failed to retrieve player' };
   }
@@ -138,14 +140,18 @@ export async function joinGameSession(gameId: number, playerId: number): Promise
     // If this is the second player, start the game
     if (playerOrder === 2) {
       // First player (order 1) goes first
-      const firstPlayer = await db.select()
-        .from(gameParticipants)
-        .where(and(eq(gameParticipants.gameId, gameId), eq(gameParticipants.playerOrder, 1)));
+      const firstPlayer = await db.query.gameParticipants.findFirst({
+        where: and(eq(gameParticipants.gameId, gameId), eq(gameParticipants.playerOrder, 1))
+      });
+
+      if (!firstPlayer) {
+        return { type: 'PLAYER_NOT_FOUND', message: 'Failed to find first player' };
+      }
 
       await db.update(gameSessions)
         .set({
           status: GameStatus.ACTIVE,
-          currentTurn: firstPlayer[0].playerId
+          currentTurn: firstPlayer.playerId
         })
         .where(eq(gameSessions.id, gameId));
     }
@@ -158,26 +164,16 @@ export async function joinGameSession(gameId: number, playerId: number): Promise
 
 export async function getGameSession(gameId: number): Promise<GameSession | GameError> {
   try {
-    const gameResult = await db.select().from(gameSessions).where(eq(gameSessions.id, gameId));
-    if (gameResult.length === 0) {
+    const gameResult = await db.query.gameSessions.findFirst({
+      where: eq(gameSessions.id, gameId),
+      with: {
+        participants: true
+      }
+    });
+    if (!gameResult) {
       return { type: 'GAME_NOT_FOUND', message: 'Game session not found' };
     }
-
-    const participantsResult = await db.select({
-      playerId: gameParticipants.playerId,
-      playerOrder: gameParticipants.playerOrder
-    }).from(gameParticipants).where(eq(gameParticipants.gameId, gameId));
-
-    const game = gameResult[0];
-    return {
-      id: game.id,
-      status: game.status as GameStatus,
-      winnerId: game.winnerId,
-      isDraw: game.isDraw,
-      currentTurn: game.currentTurn,
-      grid: game.grid as (number | null)[][],
-      participants: participantsResult
-    };
+    return { ...gameResult, grid: gameResult.grid as (number | null)[][] };
   } catch (error) {
     return { type: 'GAME_NOT_FOUND', message: 'Failed to retrieve game session' };
   }
@@ -215,11 +211,11 @@ export async function submitMove(move: Move): Promise<GameSession | GameError> {
     }
 
     // Count current moves to determine move number
-    const moveCount = await db.select({ count: sql<number>`count(*)` })
-      .from(gameMoves)
-      .where(eq(gameMoves.gameId, gameId));
+    const moveCount = (await db.query.gameMoves.findMany({
+      where: eq(gameMoves.gameId, gameId),
+    })).length;
 
-    const moveNumber = Number(moveCount[0].count) + 1;
+    const moveNumber = Number(moveCount) + 1;
 
     // Execute the move
     const newGrid = game.grid.map(row => [...row]);
@@ -333,19 +329,19 @@ function getNextPlayer(participants: { playerId: number; playerOrder: number }[]
 async function updatePlayerStats(gameId: number, winnerId: number | null, finalMoveNumber: number): Promise<void> {
   try {
     // Get all participants
-    const participants = await db.select({
-      playerId: gameParticipants.playerId
-    }).from(gameParticipants).where(eq(gameParticipants.gameId, gameId));
+    const participants = await db.query.gameParticipants.findMany({
+      where: eq(gameParticipants.gameId, gameId)
+    });
 
     for (const participant of participants) {
       const playerId = participant.playerId;
 
       // Get current stats
-      const currentStats = await db.select()
-        .from(playerStats)
-        .where(eq(playerStats.playerId, playerId));
+      const currentStats = await db.query.playerStats.findFirst({
+        where: eq(playerStats.playerId, playerId)
+      });
 
-      if (currentStats.length === 0) {
+      if (!currentStats) {
         // Create initial stats if they don't exist
         await db.insert(playerStats).values({
           playerId,
@@ -356,7 +352,7 @@ async function updatePlayerStats(gameId: number, winnerId: number | null, finalM
           efficiency: 0
         });
       } else {
-        const stats = currentStats[0];
+        const stats = currentStats;
         const newGamesPlayed = (stats.gamesPlayed || 0) + 1;
         const newGamesWon = (stats.gamesWon || 0) + (winnerId === playerId ? 1 : 0);
         const newWinRate = Math.round((newGamesWon / newGamesPlayed) * 10000);
@@ -417,15 +413,14 @@ export async function getLeaderboard(): Promise<{ playerId: number; playerName: 
 
 export async function getPlayerStats(playerId: number): Promise<{ gamesPlayed: number; gamesWon: number; winRate: number; efficiency: number } | GameError> {
   try {
-    const stats = await db.select()
-      .from(playerStats)
-      .where(eq(playerStats.playerId, playerId));
+    const stat = await db.query.playerStats.findFirst({
+      where: eq(playerStats.playerId, playerId)
+    });
 
-    if (stats.length === 0) {
+    if (!stat) {
       return { type: 'PLAYER_NOT_FOUND', message: 'Player stats not found' };
     }
 
-    const stat = stats[0];
     return {
       gamesPlayed: stat.gamesPlayed || 0,
       gamesWon: stat.gamesWon || 0,

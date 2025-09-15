@@ -1,3 +1,7 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
+import * as postgres from 'postgres';
+import * as schema from './schema';
 
-export const db = drizzle(process.env.DATABASE_URL || 'postgresql://localhost:5432/postgres');
+const connection = postgres.default(process.env.DATABASE_URL || 'postgresql://localhost:5432/postgres');
+
+export const db = drizzle(connection, { schema });
