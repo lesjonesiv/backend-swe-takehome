@@ -3,8 +3,6 @@
 # API Testing Script for Grid-Based Game Engine
 # This script tests all endpoints for basic functionality
 
-set -e  # Exit on any error
-
 BASE_URL="http://localhost:3000"
 CONTENT_TYPE="Content-Type: application/json"
 
