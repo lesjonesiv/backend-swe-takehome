@@ -1,11 +1,12 @@
 import { db } from '../db/connection';
 import { players, gameSessions, gameParticipants, gameMoves, playerStats } from '../db/schema';
 import { eq, and, desc, sql } from 'drizzle-orm';
+import { GameStatus } from '../types/gameTypes';
 
 // Types for service functions
 export interface GameSession {
   id: number;
-  status: 'waiting' | 'active' | 'completed';
+  status: GameStatus;
   winnerId: number | null;
   isDraw: boolean | null;
   currentTurn: number | null;
@@ -77,13 +78,13 @@ export async function createGameSession(): Promise<GameSession | GameError> {
     ];
 
     const result = await db.insert(gameSessions).values({
-      status: 'waiting',
+      status: GameStatus.WAITING,
       grid: emptyGrid
     }).returning();
 
     return {
       id: result[0].id,
-      status: result[0].status as 'waiting' | 'active' | 'completed',
+      status: result[0].status as GameStatus,
       winnerId: result[0].winnerId,
       isDraw: result[0].isDraw,
       currentTurn: result[0].currentTurn,
@@ -110,7 +111,7 @@ export async function joinGameSession(gameId: number, playerId: number): Promise
     }
 
     // Check if game is waiting
-    if (game.status !== 'waiting') {
+    if (game.status !== GameStatus.WAITING) {
       return { type: 'GAME_FULL', message: 'Game is not accepting new players' };
     }
 
@@ -143,7 +144,7 @@ export async function joinGameSession(gameId: number, playerId: number): Promise
 
       await db.update(gameSessions)
         .set({
-          status: 'active',
+          status: GameStatus.ACTIVE,
           currentTurn: firstPlayer[0].playerId
         })
         .where(eq(gameSessions.id, gameId));
@@ -170,7 +171,7 @@ export async function getGameSession(gameId: number): Promise<GameSession | Game
     const game = gameResult[0];
     return {
       id: game.id,
-      status: game.status as 'waiting' | 'active' | 'completed',
+      status: game.status as GameStatus,
       winnerId: game.winnerId,
       isDraw: game.isDraw,
       currentTurn: game.currentTurn,
@@ -199,7 +200,7 @@ export async function submitMove(move: Move): Promise<GameSession | GameError> {
     }
 
     // Check if game is active
-    if (game.status !== 'active') {
+    if (game.status !== GameStatus.ACTIVE) {
       return { type: 'GAME_NOT_ACTIVE', message: 'Game is not active' };
     }
 
@@ -246,7 +247,7 @@ export async function submitMove(move: Move): Promise<GameSession | GameError> {
       // Game is over
       await db.update(gameSessions)
         .set({
-          status: 'completed',
+          status: GameStatus.COMPLETED,
           winnerId: winner,
           isDraw: isDraw,
           completedAt: new Date(),

@@ -1,5 +1,9 @@
-import { pgTable, serial, varchar, integer, timestamp, boolean, json } from 'drizzle-orm/pg-core';
+import { pgTable, serial, varchar, integer, timestamp, boolean, json, pgEnum } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
+import { GameStatus } from '../types/gameTypes';
+
+// Enums
+export const gameStatusEnum = pgEnum('game_status', [GameStatus.WAITING, GameStatus.ACTIVE, GameStatus.COMPLETED]);
 
 // Players table
 export const players = pgTable('players', {
@@ -11,7 +15,7 @@ export const players = pgTable('players', {
 // Game sessions table
 export const gameSessions = pgTable('game_sessions', {
   id: serial('id').primaryKey(),
-  status: varchar('status', { length: 20 }).notNull().default('waiting'), // waiting, active, completed
+  status: gameStatusEnum('status').notNull().default(GameStatus.WAITING),
   winnerId: integer('winner_id').references(() => players.id),
   isDraw: boolean('is_draw').default(false),
   createdAt: timestamp('created_at').defaultNow().notNull(),
