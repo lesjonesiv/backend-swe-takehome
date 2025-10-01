@@ -21,6 +21,7 @@ export const gameSessions = pgTable('game_sessions', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   completedAt: timestamp('completed_at'),
   currentTurn: integer('current_turn').references(() => players.id),
+  boardSize: integer('board_size').notNull().default(3),
   grid: json('grid').notNull().default('[[null,null,null],[null,null,null],[null,null,null]]'),
 });
 

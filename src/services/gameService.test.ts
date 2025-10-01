@@ -129,12 +129,46 @@ describe('Game Session Management', () => {
       winnerId: null,
       isDraw: false, // Database default value
       currentTurn: null,
+      boardSize: 3,
       grid: [
         [null, null, null],
         [null, null, null],
         [null, null, null]
       ],
       participants: []
+    });
+  });
+
+  test('should create game session with custom board size', async () => {
+    const result = await gameService.createGameSession(5);
+
+    expect(result).toMatchObject({
+      id: expect.any(Number),
+      status: GameStatus.WAITING,
+      boardSize: 5,
+      participants: []
+    });
+
+    const game = result as GameSession;
+    expect(game.grid.length).toBe(5);
+    expect(game.grid[0].length).toBe(5);
+  });
+
+  test('should reject board size less than 3', async () => {
+    const result = await gameService.createGameSession(2);
+
+    expect(result).toEqual({
+      type: 'INVALID_MOVE',
+      message: 'Board size must be between 3 and 10'
+    });
+  });
+
+  test('should reject board size greater than 10', async () => {
+    const result = await gameService.createGameSession(11);
+
+    expect(result).toEqual({
+      type: 'INVALID_MOVE',
+      message: 'Board size must be between 3 and 10'
     });
   });
 
@@ -470,6 +504,80 @@ describe('Move Submission and Game Logic', () => {
       playerId: player1.id,
       row: 100,
       col: 100
+    });
+
+    expect(result).toEqual({
+      type: 'INVALID_MOVE',
+      message: 'Invalid move coordinates'
+    });
+  });
+
+  test('should detect horizontal win on 5x5 board', async () => {
+    // Create a 5x5 game
+    const p1 = await gameService.createPlayer('Player1') as Player;
+    const p2 = await gameService.createPlayer('Player2') as Player;
+    const game = await gameService.createGameSession(5) as GameSession;
+    await gameService.joinGameSession(game.id, p1.id);
+    const activeGame = await gameService.joinGameSession(game.id, p2.id) as GameSession;
+
+    // Player 1 fills entire top row
+    await gameService.submitMove({ gameId: activeGame.id, playerId: p1.id, row: 0, col: 0 });
+    await gameService.submitMove({ gameId: activeGame.id, playerId: p2.id, row: 1, col: 0 });
+    await gameService.submitMove({ gameId: activeGame.id, playerId: p1.id, row: 0, col: 1 });
+    await gameService.submitMove({ gameId: activeGame.id, playerId: p2.id, row: 1, col: 1 });
+    await gameService.submitMove({ gameId: activeGame.id, playerId: p1.id, row: 0, col: 2 });
+    await gameService.submitMove({ gameId: activeGame.id, playerId: p2.id, row: 1, col: 2 });
+    await gameService.submitMove({ gameId: activeGame.id, playerId: p1.id, row: 0, col: 3 });
+    await gameService.submitMove({ gameId: activeGame.id, playerId: p2.id, row: 1, col: 3 });
+
+    const result = await gameService.submitMove({ gameId: activeGame.id, playerId: p1.id, row: 0, col: 4 });
+
+    expect(result).toMatchObject({
+      status: GameStatus.COMPLETED,
+      winnerId: p1.id,
+      isDraw: false
+    });
+  });
+
+  test('should detect diagonal win on 5x5 board', async () => {
+    // Create a 5x5 game
+    const p1 = await gameService.createPlayer('Player1') as Player;
+    const p2 = await gameService.createPlayer('Player2') as Player;
+    const game = await gameService.createGameSession(5) as GameSession;
+    await gameService.joinGameSession(game.id, p1.id);
+    const activeGame = await gameService.joinGameSession(game.id, p2.id) as GameSession;
+
+    // Player 1 fills entire main diagonal
+    await gameService.submitMove({ gameId: activeGame.id, playerId: p1.id, row: 0, col: 0 });
+    await gameService.submitMove({ gameId: activeGame.id, playerId: p2.id, row: 0, col: 1 });
+    await gameService.submitMove({ gameId: activeGame.id, playerId: p1.id, row: 1, col: 1 });
+    await gameService.submitMove({ gameId: activeGame.id, playerId: p2.id, row: 0, col: 2 });
+    await gameService.submitMove({ gameId: activeGame.id, playerId: p1.id, row: 2, col: 2 });
+    await gameService.submitMove({ gameId: activeGame.id, playerId: p2.id, row: 0, col: 3 });
+    await gameService.submitMove({ gameId: activeGame.id, playerId: p1.id, row: 3, col: 3 });
+    await gameService.submitMove({ gameId: activeGame.id, playerId: p2.id, row: 0, col: 4 });
+
+    const result = await gameService.submitMove({ gameId: activeGame.id, playerId: p1.id, row: 4, col: 4 });
+
+    expect(result).toMatchObject({
+      status: GameStatus.COMPLETED,
+      winnerId: p1.id,
+      isDraw: false
+    });
+  });
+
+  test('should reject out of bounds move on 5x5 board', async () => {
+    const p1 = await gameService.createPlayer('Player1') as Player;
+    const p2 = await gameService.createPlayer('Player2') as Player;
+    const game = await gameService.createGameSession(5) as GameSession;
+    await gameService.joinGameSession(game.id, p1.id);
+    const activeGame = await gameService.joinGameSession(game.id, p2.id) as GameSession;
+
+    const result = await gameService.submitMove({
+      gameId: activeGame.id,
+      playerId: p1.id,
+      row: 5,
+      col: 0
     });
 
     expect(result).toEqual({

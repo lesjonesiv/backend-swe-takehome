@@ -10,6 +10,7 @@ export interface GameSession {
   winnerId: number | null;
   isDraw: boolean | null;
   currentTurn: number | null;
+  boardSize: number;
   grid: (number | null)[][];
   participants: { playerId: number; playerOrder: number }[];
 }
@@ -71,16 +72,18 @@ export async function getPlayer(playerId: number): Promise<Player | GameError> {
 }
 
 // Game session management functions
-export async function createGameSession(): Promise<GameSession | GameError> {
+export async function createGameSession(boardSize: number = 3): Promise<GameSession | GameError> {
   try {
-    const emptyGrid: (number | null)[][] = [
-      [null, null, null],
-      [null, null, null],
-      [null, null, null]
-    ];
+    // Validate board size
+    if (boardSize < 3 || boardSize > 10) {
+      return { type: 'INVALID_MOVE', message: 'Board size must be between 3 and 10' };
+    }
+
+    const emptyGrid: (number | null)[][] = Array(boardSize).fill(null).map(() => Array(boardSize).fill(null));
 
     const result = await db.insert(gameSessions).values({
       status: GameStatus.WAITING,
+      boardSize,
       grid: emptyGrid
     }).returning();
 
@@ -90,6 +93,7 @@ export async function createGameSession(): Promise<GameSession | GameError> {
       winnerId: result[0].winnerId,
       isDraw: result[0].isDraw,
       currentTurn: result[0].currentTurn,
+      boardSize: result[0].boardSize,
       grid: result[0].grid as (number | null)[][],
       participants: []
     };
@@ -184,15 +188,15 @@ export async function submitMove(move: Move): Promise<GameSession | GameError> {
   try {
     const { gameId, playerId, row, col } = move;
 
-    // Validate move coordinates
-    if (row < 0 || row > 2 || col < 0 || col > 2) {
-      return { type: 'INVALID_MOVE', message: 'Invalid move coordinates' };
-    }
-
     // Get current game state
     const game = await getGameSession(gameId);
     if ('type' in game) {
       return game;
+    }
+
+    // Validate move coordinates
+    if (row < 0 || row >= game.boardSize || col < 0 || col >= game.boardSize) {
+      return { type: 'INVALID_MOVE', message: 'Invalid move coordinates' };
     }
 
     // Check if game is active
@@ -269,43 +273,71 @@ export async function submitMove(move: Move): Promise<GameSession | GameError> {
 
 // Game state validation functions
 function checkWinner(grid: (number | null)[][]): number | null {
+  const size = grid.length;
+
   // Check rows
-  for (let row = 0; row < 3; row++) {
-    if (grid[row][0] !== null &&
-        grid[row][0] === grid[row][1] &&
-        grid[row][1] === grid[row][2]) {
-      return grid[row][0];
+  for (let row = 0; row < size; row++) {
+    if (grid[row][0] !== null) {
+      let winner = grid[row][0];
+      let isWin = true;
+      for (let col = 1; col < size; col++) {
+        if (grid[row][col] !== winner) {
+          isWin = false;
+          break;
+        }
+      }
+      if (isWin) return winner;
     }
   }
 
   // Check columns
-  for (let col = 0; col < 3; col++) {
-    if (grid[0][col] !== null &&
-        grid[0][col] === grid[1][col] &&
-        grid[1][col] === grid[2][col]) {
-      return grid[0][col];
+  for (let col = 0; col < size; col++) {
+    if (grid[0][col] !== null) {
+      let winner = grid[0][col];
+      let isWin = true;
+      for (let row = 1; row < size; row++) {
+        if (grid[row][col] !== winner) {
+          isWin = false;
+          break;
+        }
+      }
+      if (isWin) return winner;
     }
   }
 
-  // Check diagonals
-  if (grid[0][0] !== null &&
-      grid[0][0] === grid[1][1] &&
-      grid[1][1] === grid[2][2]) {
-    return grid[0][0];
+  // Check diagonal (top-left to bottom-right)
+  if (grid[0][0] !== null) {
+    let winner = grid[0][0];
+    let isWin = true;
+    for (let i = 1; i < size; i++) {
+      if (grid[i][i] !== winner) {
+        isWin = false;
+        break;
+      }
+    }
+    if (isWin) return winner;
   }
 
-  if (grid[0][2] !== null &&
-      grid[0][2] === grid[1][1] &&
-      grid[1][1] === grid[2][0]) {
-    return grid[0][2];
+  // Check diagonal (top-right to bottom-left)
+  if (grid[0][size - 1] !== null) {
+    let winner = grid[0][size - 1];
+    let isWin = true;
+    for (let i = 1; i < size; i++) {
+      if (grid[i][size - 1 - i] !== winner) {
+        isWin = false;
+        break;
+      }
+    }
+    if (isWin) return winner;
   }
 
   return null;
 }
 
 function isBoardFull(grid: (number | null)[][]): boolean {
-  for (let row = 0; row < 3; row++) {
-    for (let col = 0; col < 3; col++) {
+  const size = grid.length;
+  for (let row = 0; row < size; row++) {
+    for (let col = 0; col < size; col++) {
       if (grid[row][col] === null) {
         return false;
       }
